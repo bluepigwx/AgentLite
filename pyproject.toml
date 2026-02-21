@@ -1,0 +1,15 @@
+[project]
+name = "agentlite"
+version = "0.1.0"
+description = "A production-grade LangChain agent service"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-ollama>=0.1.0",
+    "langchain-openai>=1.1.10",
+    "langchainhub>=0.1.21",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pyyaml>=6.0",
+]

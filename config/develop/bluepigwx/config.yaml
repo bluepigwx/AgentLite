@@ -1,0 +1,4 @@
+# bluepigwx 命名空间配置 —— 仅覆盖需要的配置项
+
+active_agents:
+  - general_assistant

@@ -1,0 +1,41 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+active_agents:
+  - weather_assistant
+
+models:
+  qwen:
+    provider: "openai"
+    model_name: "qwen2.5:7b"
+    base_url: "http://localhost:11434/v1"
+    api_key: "ollama"
+
+  llama:
+    provider: "openai"
+    model_name: "llama3.1:8b"
+    base_url: "http://localhost:11434/v1"
+    api_key: "ollama"
+
+  deepseek:
+    provider: "openai"
+    model_name: "deepseek-chat"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "your-deepseek-api-key"
+
+agents:
+  weather_assistant:
+    system_prompt: "你是一个天气查询助理"
+    max_iterations: 10
+    model: "qwen"
+    tools:
+      - get_weather
+      - get_alien_weather
+
+  general_assistant:
+    system_prompt: "你是一个通用智能助手"
+    max_iterations: 15
+    model: "qwen"
+    tools:
+      - calculate
