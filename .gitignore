@@ -60,6 +60,7 @@ coverage.xml
 *.swo
 *~
 .DS_Store
+.codebuddy
 
 # mypy
 .mypy_cache/

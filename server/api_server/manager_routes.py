@@ -1,14 +1,31 @@
 from fastapi import APIRouter
 import logging
 from server.tools.tool_register import get_tools_registry, get_tool
+from server.session_mgr import session_mgr
 
 logger = logging.getLogger(__name__)
 
 
-tool_router = APIRouter(prefix="/tools", tags=["Toolkits"])
+manager_router = APIRouter(prefix="/manager", tags=["Manager"])
 
 
-@tool_router.get("/list")
+@manager_router.get("/sessions/list")
+async def list_sessions():
+    """列举当前所有已连接的客户端 Session。"""
+    sessions = session_mgr.get_all_sessions()
+    return {
+        "online_count": len(sessions),
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "conversation_id": s.conversation_id,
+            }
+            for s in sessions.values()
+        ],
+    }
+
+
+@manager_router.get("/tools/list")
 async def list_tools():
     """获取所有已注册的工具列表。"""
     registry = get_tools_registry()
@@ -24,7 +41,7 @@ async def list_tools():
     }
 
 
-@tool_router.post("/invoke/{tool_name}")
+@manager_router.post("/tools/invoke/{tool_name}")
 async def invoke_tool(tool_name: str, params: dict):
     """通过 HTTP 直接调用指定工具。"""
     t = get_tool(tool_name)
@@ -32,7 +49,7 @@ async def invoke_tool(tool_name: str, params: dict):
     return {"tool": tool_name, "result": result}
 
 
-@tool_router.post("/reload-config")
+@manager_router.post("/reload-config")
 async def reload_config():
     """重新加载配置文件（保持当前 env/namespace 上下文）。"""
     from config.configs import load_config, get_config_context

@@ -3,6 +3,7 @@
 import logging
 
 from langchain.agents import create_agent
+from langchain.agents.middleware.summarization import SummarizationMiddleware
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_core.language_models import BaseChatModel
@@ -16,6 +17,11 @@ from server.agent.agent_inst import AgentInst
 from server.agent.langchain_agent_inst import LangchainAgentInst
 
 logger = logging.getLogger(__name__)
+
+# 对话总结触发阈值：消息数达到 50 条时触发总结
+_SUMMARIZATION_TRIGGER = ("messages", 50)
+# 总结后保留最近 10 条消息
+_SUMMARIZATION_KEEP = ("messages", 10)
 
 
 class LangchainAgentFactory(AgentFactory):
@@ -37,12 +43,19 @@ class LangchainAgentFactory(AgentFactory):
 
         tools = get_tools_by_names(agent_cfg.tools) if agent_cfg.tools else []
 
+        summarization = SummarizationMiddleware(
+            model=llm,
+            trigger=_SUMMARIZATION_TRIGGER,
+            keep=_SUMMARIZATION_KEEP,
+        )
+
         runnable = create_agent(
             model=llm,
             tools=tools,
             system_prompt=agent_cfg.system_prompt,
             name=name,
             checkpointer=InMemorySaver(),
+            middleware=[summarization],
         )
 
         inst = LangchainAgentInst(name=name, agent_cfg=agent_cfg, runnable=runnable)

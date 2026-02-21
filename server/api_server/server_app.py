@@ -1,10 +1,15 @@
 from contextlib import asynccontextmanager
+import json
 import logging
-from fastapi import FastAPI, Request
+
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-from server.api_server.tools_routes import tool_router
+
+from server.api_server.manager_routes import manager_router
 from server.api_server.chat_routes import chat_router
 from config.configs import get_config
+from server.session_mgr import session_mgr
+from server.session_mgr.cmd_dispatch import dispatch
 
 
 logger = logging.getLogger(__name__)
@@ -52,12 +57,42 @@ def create_app() -> FastAPI:
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"error": str(exc)})
 
-    new_app.include_router(tool_router)
+    new_app.include_router(manager_router)
     new_app.include_router(chat_router)
 
     @new_app.get("/health")
     async def health_check():
         return {"status": "ok"}
+
+
+
+    @new_app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket):
+        """WebSocket 连接端点：建立 Session，维持连接直到客户端断开。"""
+        session = await session_mgr.accept(websocket)
+        try:
+            # 连接成功通知
+            await session.send_text(json.dumps({
+                "cmd": "connected",
+                "status": "ok",
+                "params": {"session_id": session.session_id},
+            }))
+
+            # 消息循环：收到消息后交给分发器处理
+            while True:
+                raw = await session.receive_text()
+                logger.debug(
+                    "收到消息 [session=%s]: %s",
+                    session.session_id, raw[:200],
+                )
+                await dispatch(session, raw)
+
+        except WebSocketDisconnect:
+            logger.info(
+                "客户端断开 [session=%s]", session.session_id,
+            )
+        finally:
+            session_mgr.disconnect(session)
 
     return new_app
 
