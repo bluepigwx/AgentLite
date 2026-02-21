@@ -7,10 +7,26 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, AIMessage
 
+from langchain.agents import AgentState
+
 from config.configs import AgentConfig
 from server.agent.agent_inst import AgentInst
 
 logger = logging.getLogger(__name__)
+
+
+class LangchainAgentState(AgentState):
+    """LangGraph Agent 状态，继承 AgentState 并扩展 LangGraph 特有字段。
+
+    继承自 AgentState 的字段:
+        messages: 消息列表，使用 add_messages reducer 自动合并。
+
+    扩展字段:
+        session_id: 会话标识，工具函数可通过
+            Annotated[str, InjectedState("session_id")] 注入。
+    """
+
+    session_id: str
 
 
 class LangchainAgentInst(AgentInst):
@@ -48,7 +64,10 @@ class LangchainAgentInst(AgentInst):
             AI 回复的文本内容。
         """
         result: dict[str, Any] = self._runnable.invoke(
-            {"messages": [HumanMessage(content=user_message)]},
+            {
+                "messages": [HumanMessage(content=user_message)],
+                "session_id": conversation_id,
+            },
             config={"configurable": {"thread_id": conversation_id}},
         )
 

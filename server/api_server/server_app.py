@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from server.api_server.manager_routes import manager_router
 from server.api_server.chat_routes import chat_router
+from server.api_server.mc_routes import mc_router
 from config.configs import get_config
 from server.session_mgr import session_mgr
 from server.session_mgr.cmd_dispatch import dispatch
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
 
     new_app.include_router(manager_router)
     new_app.include_router(chat_router)
+    new_app.include_router(mc_router)
 
     @new_app.get("/health")
     async def health_check():
@@ -92,6 +94,7 @@ def create_app() -> FastAPI:
                 "客户端断开 [session=%s]", session.session_id,
             )
         finally:
+            session.cleanup()
             session_mgr.disconnect(session)
 
     return new_app

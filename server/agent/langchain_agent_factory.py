@@ -14,7 +14,7 @@ from config.configs import get_config, ModelConfig, AgentConfig
 from server.tools.tool_register import get_tools_by_names
 from server.agent.agent_factory import AgentFactory
 from server.agent.agent_inst import AgentInst
-from server.agent.langchain_agent_inst import LangchainAgentInst
+from server.agent.langchain_agent_inst import LangchainAgentInst, LangchainAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class LangchainAgentFactory(AgentFactory):
             name=name,
             checkpointer=InMemorySaver(),
             middleware=[summarization],
+            state_schema=LangchainAgentState,
         )
 
         inst = LangchainAgentInst(name=name, agent_cfg=agent_cfg, runnable=runnable)

@@ -63,21 +63,9 @@ async def _handle_new_conversation(session: Session, params: dict[str, Any]) -> 
 async def dispatch(session: Session, raw: str) -> None:
     """解析一条原始消息并分发到对应的处理函数。
 
-    消息格式定义:
-        Request::
-
-            {
-                "cmd": "消息名称",
-                "params": "消息参数"
-            }
-
-        Response::
-
-            {
-                "cmd": "消息名称",
-                "status": "消息状态",
-                "params": "消息参数"
-            }
+    消息分为两类：
+    1. 客户端请求:  {"cmd": "xxx", "params": {...}}
+    2. 客户端响应（对 send_request 的回复）: {"cmd": "xxx", "status": "ok|error", "params": {...}}
 
     Args:
         session: 当前会话。
@@ -86,8 +74,6 @@ async def dispatch(session: Session, raw: str) -> None:
     # 解析 JSON
     try:
         msg: dict[str, Any] = json.loads(raw)
-        cmd: str | None = msg.get("cmd")
-        params: dict[str, Any] = msg.get("params", {})
     except (json.JSONDecodeError, AttributeError):
         await session.send_text(json.dumps({
             "cmd": "error",
@@ -96,7 +82,7 @@ async def dispatch(session: Session, raw: str) -> None:
         }))
         return
 
-    # 查路由表分发
+    cmd: str | None = msg.get("cmd")
     if not cmd:
         await session.send_text(json.dumps({
             "cmd": "unknown",
@@ -105,12 +91,30 @@ async def dispatch(session: Session, raw: str) -> None:
         }))
         return
 
+    # 客户端响应消息：含 status 字段，路由到 Session 的 pending request
+    status: str | None = msg.get("status")
+    if status is not None:
+        params = msg.get("params", {})
+        if session.resolve_response(cmd, status, params):
+            logger.debug(
+                "客户端响应已路由 [session=%s, cmd=%s]",
+                session.session_id, cmd,
+            )
+        else:
+            logger.warning(
+                "收到无匹配的客户端响应 [session=%s, cmd=%s]",
+                session.session_id, cmd,
+            )
+        return
+
+    # 客户端请求消息：无 status 字段，查路由表分发
+    params = msg.get("params", {})
     handler = _CMD_HANDLERS.get(cmd)
     if handler:
         await handler(session, params)
     else:
         await session.send_text(json.dumps({
-            "cmd": cmd or "unknown",
+            "cmd": cmd,
             "status": "error",
             "params": {"reason": f"未知命令: {cmd}"},
         }))

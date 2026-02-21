@@ -4,12 +4,19 @@
 Session 内部维护当前活跃的 conversation_id，后续可扩展为多轮会话管理。
 """
 
+import asyncio
+import json
 import logging
 import uuid
+from typing import Any
 
 from fastapi import WebSocket
 
+from server.session_mgr.cmd_builder import build_request
+
 logger = logging.getLogger(__name__)
+
+_DEFAULT_REQUEST_TIMEOUT = 30.0
 
 
 class Session:
@@ -25,6 +32,8 @@ class Session:
         self.session_id: str = uuid.uuid4().hex
         self.websocket: WebSocket = websocket
         self.conversation_id: str | None = None
+        # cmd → Future，用于 request-response 模式等待客户端回复
+        self._pending_requests: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------
     # 连接生命周期
@@ -43,6 +52,13 @@ class Session:
             self.session_id, code,
         )
 
+    def cleanup(self) -> None:
+        """清理所有待处理请求，取消等待中的 Future。"""
+        for future in self._pending_requests.values():
+            if not future.done():
+                future.cancel()
+        self._pending_requests.clear()
+
     # ------------------------------------------------------------------
     # 消息收发
     # ------------------------------------------------------------------
@@ -54,6 +70,75 @@ class Session:
     async def send_text(self, data: str) -> None:
         """发送一条文本消息。"""
         await self.websocket.send_text(data)
+
+    # ------------------------------------------------------------------
+    # Request-Response：服务端主动向客户端发请求并等待回复
+    # ------------------------------------------------------------------
+
+    async def send_request(
+        self,
+        cmd: str,
+        params: dict[str, Any] | None = None,
+        timeout: float = _DEFAULT_REQUEST_TIMEOUT,
+    ) -> dict[str, Any]:
+        """向客户端发送请求并等待回复。
+
+        Args:
+            cmd: 命令名称。
+            params: 命令参数。
+            timeout: 等待回复的超时时间（秒）。
+
+        Returns:
+            客户端回复的 params 字段内容。
+
+        Raises:
+            TimeoutError: 等待回复超时。
+            RuntimeError: 客户端返回错误或该 cmd 已有待处理请求。
+        """
+        if cmd in self._pending_requests:
+            msg = f"cmd '{cmd}' 已有待处理请求，不能重复发送"
+            raise RuntimeError(msg)
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self._pending_requests[cmd] = future
+
+        message = json.dumps(build_request(cmd, params))
+
+        try:
+            await self.send_text(message)
+            result = await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            msg = f"等待客户端回复超时 [cmd={cmd}]"
+            raise TimeoutError(msg)
+        finally:
+            self._pending_requests.pop(cmd, None)
+
+        return result
+
+    def resolve_response(self, cmd: str, status: str, params: dict[str, Any]) -> bool:
+        """将客户端的回复路由到对应的等待 Future。
+
+        Args:
+            cmd: 回复对应的命令名称。
+            status: 客户端回复的状态码。
+            params: 客户端回复的参数。
+
+        Returns:
+            True 表示成功匹配到待处理请求，False 表示无匹配。
+        """
+        future = self._pending_requests.get(cmd)
+        if future is None or future.done():
+            return False
+
+        if status == "ok":
+            future.set_result(params)
+        else:
+            reason = params.get("reason", status)
+            future.set_exception(
+                RuntimeError(f"客户端返回错误 [cmd={cmd}, reason={reason}]")
+            )
+        return True
 
     # ------------------------------------------------------------------
     # 对话 ID 管理

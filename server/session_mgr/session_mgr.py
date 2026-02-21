@@ -62,6 +62,25 @@ def get_session(session_id: str) -> Session | None:
     return _sessions.get(session_id)
 
 
+def get_session_or_raise(session_id: str) -> Session:
+    """按 session_id 查找活跃 Session，不存在则抛出异常。
+
+    Args:
+        session_id: 会话唯一标识。
+
+    Returns:
+        Session 实例。
+
+    Raises:
+        RuntimeError: session 不存在或已断开。
+    """
+    session = _sessions.get(session_id)
+    if session is None:
+        msg = f"session '{session_id}' 不存在或已断开"
+        raise RuntimeError(msg)
+    return session
+
+
 def get_all_sessions() -> dict[str, Session]:
     """获取所有活跃 Session 的只读快照。"""
     return dict(_sessions)
