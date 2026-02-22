@@ -95,15 +95,22 @@ async def dispatch(session: Session, raw: str) -> None:
     status: str | None = msg.get("status")
     if status is not None:
         params = msg.get("params", {})
-        if session.resolve_response(cmd, status, params):
-            logger.debug(
-                "客户端响应已路由 [session=%s, cmd=%s]",
+        request_id: str = msg.get("request_id", "")
+        if not request_id:
+            logger.warning(
+                "客户端响应缺少 request_id [session=%s, cmd=%s]",
                 session.session_id, cmd,
+            )
+            return
+        if session.resolve_response(request_id, status, params):
+            logger.debug(
+                "客户端响应已路由 [session=%s, cmd=%s, request_id=%s]",
+                session.session_id, cmd, request_id,
             )
         else:
             logger.warning(
-                "收到无匹配的客户端响应 [session=%s, cmd=%s]",
-                session.session_id, cmd,
+                "收到无匹配的客户端响应 [session=%s, cmd=%s, request_id=%s]",
+                session.session_id, cmd, request_id,
             )
         return
 

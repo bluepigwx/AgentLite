@@ -4,6 +4,7 @@ import logging
 
 from langchain.agents import create_agent
 from langchain.agents.middleware.summarization import SummarizationMiddleware
+from langchain.agents.middleware.tool_call_limit import ToolCallLimitMiddleware
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_core.language_models import BaseChatModel
@@ -49,13 +50,19 @@ class LangchainAgentFactory(AgentFactory):
             keep=_SUMMARIZATION_KEEP,
         )
 
+        # 限制单次调用（run）的工具调用总次数，防止 LLM 陷入循环
+        tool_call_limit = ToolCallLimitMiddleware(
+            run_limit=agent_cfg.max_iterations,
+            exit_behavior="end",
+        )
+
         runnable = create_agent(
             model=llm,
             tools=tools,
             system_prompt=agent_cfg.system_prompt,
             name=name,
             checkpointer=InMemorySaver(),
-            middleware=[summarization],
+            middleware=[summarization, tool_call_limit],
             state_schema=LangchainAgentState,
         )
 
@@ -82,11 +89,13 @@ class LangchainAgentFactory(AgentFactory):
                 model=model_cfg.model_name,
                 base_url=model_cfg.base_url,
                 api_key=SecretStr(model_cfg.api_key),
+                temperature=0,
             )
         if model_cfg.provider == "ollama":
             return ChatOllama(
                 model=model_cfg.model_name,
                 base_url=model_cfg.base_url,
+                temperature=0,
             )
         msg = f"不支持的 provider: '{model_cfg.provider}'"
         raise ValueError(msg)

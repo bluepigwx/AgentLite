@@ -63,6 +63,7 @@ async def handle_chat(session: Session, params: dict[str, Any]) -> None:
                 agent_name=agent_name,
                 user_message=message,
                 conversation_id=conversation_id,
+                session_id=session.session_id,
             ),
         )
 

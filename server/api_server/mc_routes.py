@@ -1,4 +1,8 @@
-"""PyMC 场景操作路由：提供 HTTP 接口测试 mc_builder 工具函数。"""
+"""PyMC 场景操作路由：提供 HTTP 接口模拟调用 mc_builder 工具，用于测试。
+
+HTTP 路由不经过 Agent/LangGraph，InjectedState 不会自动注入，
+因此手动把 session_id 作为参数传入工具调用。
+"""
 
 import logging
 from typing import Any, cast
@@ -27,12 +31,10 @@ class SetBlocksRequest(BaseModel):
 @mc_router.get("/scene_info")
 async def route_get_scene_info(session_id: str) -> dict[str, Any]:
     """获取指定 PyMC 客户端的场景信息，包括摄像机位置和所有方块数据。"""
-    result = await get_scene_info_tool.ainvoke({"session_id": session_id})
-    return result
+    return get_scene_info_tool.invoke({"session_id": session_id})
 
 
 @mc_router.post("/set_blocks")
 async def route_set_blocks(req: SetBlocksRequest) -> dict[str, Any]:
     """在指定 PyMC 客户端的场景中批量放置方块。"""
-    result = await set_blocks_tool.ainvoke({"session_id": req.session_id, "blocks": req.blocks})
-    return result
+    return set_blocks_tool.invoke({"blocks": req.blocks, "session_id": req.session_id})

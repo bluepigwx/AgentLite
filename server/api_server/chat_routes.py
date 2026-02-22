@@ -12,6 +12,7 @@ chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 class ChatRequest(BaseModel):
     message: str
     conversation_id: str | None = None
+    session_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -29,6 +30,7 @@ async def chat_completions(req: ChatRequest):
             handle_chat,
             user_message=req.message,
             conversation_id=req.conversation_id,
+            session_id=req.session_id or "",
         ),
     )
     return ChatResponse(**result)

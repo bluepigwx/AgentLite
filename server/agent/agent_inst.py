@@ -29,12 +29,19 @@ class AgentInst(ABC):
         self.agent_cfg = agent_cfg
 
     @abstractmethod
-    def invoke(self, user_message: str, conversation_id: str) -> str:
+    def invoke(
+        self,
+        user_message: str,
+        conversation_id: str,
+        *,
+        session_id: str = "",
+    ) -> str:
         """执行一次对话，返回 AI 回复文本。
 
         Args:
             user_message: 用户输入文本。
             conversation_id: 会话 ID，用于关联多轮对话上下文。
+            session_id: WebSocket 会话 ID，供工具通过 InjectedState 获取。
 
         Returns:
             AI 回复的文本内容。

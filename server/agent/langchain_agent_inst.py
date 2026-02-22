@@ -50,7 +50,13 @@ class LangchainAgentInst(AgentInst):
         super().__init__(name, agent_cfg)
         self._runnable = runnable
 
-    def invoke(self, user_message: str, conversation_id: str) -> str:
+    def invoke(
+        self,
+        user_message: str,
+        conversation_id: str,
+        *,
+        session_id: str = "",
+    ) -> str:
         """执行一次对话，返回 AI 回复文本。
 
         通过 thread_id 关联会话记忆，同一 conversation_id 的多次调用
@@ -59,6 +65,7 @@ class LangchainAgentInst(AgentInst):
         Args:
             user_message: 用户输入文本。
             conversation_id: 会话 ID，映射为 LangGraph 的 thread_id。
+            session_id: WebSocket 会话 ID，注入到 AgentState 供工具使用。
 
         Returns:
             AI 回复的文本内容。
@@ -66,7 +73,7 @@ class LangchainAgentInst(AgentInst):
         result: dict[str, Any] = self._runnable.invoke(
             {
                 "messages": [HumanMessage(content=user_message)],
-                "session_id": conversation_id,
+                "session_id": session_id,
             },
             config={"configurable": {"thread_id": conversation_id}},
         )

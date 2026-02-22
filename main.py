@@ -85,7 +85,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 1. 按层级加载全局配置
-    load_config(env=args.env, namespace=args.namespace)
+    #load_config(env=args.env, namespace=args.namespace)
+    load_config(env="develop", namespace="bluepigwx")
 
     # 2. 创建 FastAPI 应用（内部通过 get_config() 获取配置）
     app = create_app()

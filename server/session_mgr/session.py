@@ -32,7 +32,7 @@ class Session:
         self.session_id: str = uuid.uuid4().hex
         self.websocket: WebSocket = websocket
         self.conversation_id: str | None = None
-        # cmd → Future，用于 request-response 模式等待客户端回复
+        # request_id → Future，用于 request-response 模式等待客户端回复
         self._pending_requests: dict[str, asyncio.Future[dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------
@@ -83,6 +83,8 @@ class Session:
     ) -> dict[str, Any]:
         """向客户端发送请求并等待回复。
 
+        每次调用生成唯一 request_id，支持同一 cmd 的并发请求。
+
         Args:
             cmd: 命令名称。
             params: 命令参数。
@@ -93,41 +95,44 @@ class Session:
 
         Raises:
             TimeoutError: 等待回复超时。
-            RuntimeError: 客户端返回错误或该 cmd 已有待处理请求。
+            RuntimeError: 客户端返回错误。
         """
-        if cmd in self._pending_requests:
-            msg = f"cmd '{cmd}' 已有待处理请求，不能重复发送"
-            raise RuntimeError(msg)
+        request_id = uuid.uuid4().hex
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict[str, Any]] = loop.create_future()
-        self._pending_requests[cmd] = future
+        self._pending_requests[request_id] = future
 
-        message = json.dumps(build_request(cmd, params))
+        message = json.dumps(build_request(cmd, params, request_id=request_id))
 
         try:
             await self.send_text(message)
             result = await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
-            msg = f"等待客户端回复超时 [cmd={cmd}]"
+            msg = f"等待客户端回复超时 [cmd={cmd}, request_id={request_id}]"
             raise TimeoutError(msg)
         finally:
-            self._pending_requests.pop(cmd, None)
+            self._pending_requests.pop(request_id, None)
 
         return result
 
-    def resolve_response(self, cmd: str, status: str, params: dict[str, Any]) -> bool:
+    def resolve_response(
+        self,
+        request_id: str,
+        status: str,
+        params: dict[str, Any],
+    ) -> bool:
         """将客户端的回复路由到对应的等待 Future。
 
         Args:
-            cmd: 回复对应的命令名称。
+            request_id: 请求唯一标识，客户端回复时应原样携带。
             status: 客户端回复的状态码。
             params: 客户端回复的参数。
 
         Returns:
             True 表示成功匹配到待处理请求，False 表示无匹配。
         """
-        future = self._pending_requests.get(cmd)
+        future = self._pending_requests.get(request_id)
         if future is None or future.done():
             return False
 
@@ -136,7 +141,7 @@ class Session:
         else:
             reason = params.get("reason", status)
             future.set_exception(
-                RuntimeError(f"客户端返回错误 [cmd={cmd}, reason={reason}]")
+                RuntimeError(f"客户端返回错误 [request_id={request_id}, reason={reason}]")
             )
         return True
 
