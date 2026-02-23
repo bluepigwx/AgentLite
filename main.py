@@ -5,9 +5,14 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_openai import ChatOpenAI
 import logging
+from langchain_core.globals import set_debug, set_verbose
+
+# 开启 LangChain 调试：打印完整的 LLM 输入/输出、工具调用详情
+set_debug(True)
+set_verbose(True)
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format="[%(asctime)s][%(filename)s:%(funcName)s:%(lineno)d][%(levelname)s][%(message)s]",
                     handlers=[
                         logging.StreamHandler()
